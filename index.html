@@ -687,14 +687,8 @@
         on_start: function() {
             window.choice_start_time = Date.now();
             window.cycle_stats = {
-                clicks: 0,
-                follow: 0,
-                unfollow: 0,
-                points_lost: 0,
-                follow_acc: 0,
-                unfollow_acc: 0,
-                follow_inacc: 0,
-                unfollow_inacc: 0
+                clicks: 0, follow: 0, unfollow: 0, points_lost: 0,
+                follow_acc: 0, unfollow_acc: 0, follow_inacc: 0, unfollow_inacc: 0
             };
         },
         on_load: function(){
@@ -719,7 +713,6 @@
                         is_cod = false;
                     }, 1500);
                 } else {
-                    // ★テストフェーズでも金額を計算する
                     let rew = 0;
                     if (current_phase === 'training') {
                         rew = (side===0) ? d.rewL : d.rewR; 
@@ -741,13 +734,11 @@
                                 document.getElementById('points').innerText = total_money + "枚";
                                 window.cycle_stats.points_lost += rew; 
                                 
-                                // ★トレーニングフェーズの集計
                                 let hint_side = d.text.includes("左") ? 0 : 1; 
                                 if (side === hint_side) {
                                     if (d.char === 'accurate') summary_data.points_lost_follow_accurate_training += rew;
                                     else if (d.char === 'inaccurate') summary_data.points_lost_follow_inaccurate_training += rew;
                                 } else {
-                                    // 従わなかった場合
                                     if (d.char === 'accurate') summary_data.points_lost_unfollow_accurate_training += rew;
                                     else if (d.char === 'inaccurate') summary_data.points_lost_unfollow_inaccurate_training += rew;
                                 }
@@ -757,12 +748,10 @@
                             }
                             showFloatingPoints(rew, side, btnId);
                         } else if (current_phase === 'test') {
-                            // テストフェーズはプレイヤーには見せずに裏で金額を足す
                             if (rew > 0) {
                                 total_money_test += rew;
                                 window.cycle_stats.points_lost += rew; 
                                 
-                                // ★テストフェーズの集計
                                 let acc_dir = (experiment_data.accurate_color === 'red') ? d.red_dir : d.blue_dir;
                                 let inacc_dir = (experiment_data.inaccurate_color === 'red') ? d.red_dir : d.blue_dir;
                                 
@@ -772,7 +761,6 @@
                                 if (side === inacc_dir) summary_data.points_lost_follow_inaccurate_test += rew;
                                 else summary_data.points_lost_unfollow_inaccurate_test += rew;
                             } else {
-                                // 損失が0だった場合はテストフェーズでも成功としてカウント
                                 summary_data.total_success_test++;
                             }
                         }
@@ -791,13 +779,13 @@
                     }
                 }
 
-                // === ここからトレーニングフェーズの記録 ===
+                // ★★★ 1クリックごとの記録（ここに書くのが正解） ★★★
                 if (current_phase === 'training') {
                     summary_data.total_clicks_training++;
                     window.cycle_stats.clicks++; 
                     
                     let hint_side = d.text.includes("左") ? 0 : 1; 
-                    let is_follow = (side === hint_side); // 指示に従ったかどうか
+                    let is_follow = (side === hint_side);
                     
                     if (is_follow) { window.cycle_stats.follow++; } 
                     else { window.cycle_stats.unfollow++; }
@@ -810,32 +798,26 @@
                         else summary_data.unfollow_inaccurate_training++;
                     }
                     
-                    // トレーニングフェーズのデータ書き込み
                     jsPsych.data.write({ 
+                        event_type: 'click', // ★これがクリックごとの目印
                         phase: current_phase, cycle: d.cycle, block: d.block, trial: trial_cursor, 
-                        response_side: side === 0 ? 'left' : 'right', // 選択した方向
+                        response_side: side === 0 ? 'left' : 'right', 
                         character: d.char,
-                        hint_side: hint_side === 0 ? 'left' : 'right', // キャラが指示した方向
-                        followed_hint: is_follow, // 指示に従ったか（TRUE/FALSE）
+                        hint_side: hint_side === 0 ? 'left' : 'right',
+                        followed_hint: is_follow, 
                         reward_val: d.rewL > 0 || d.rewR > 0 ? (d.rewL > 0 ? d.rewL : d.rewR) : 0, 
-                        lost_val: rew, 
+                        lost_val: typeof rew !== 'undefined' ? rew : 0, 
                         cod: is_switch, rt: now - window.choice_start_time 
                     });
-
-                // === ここからテストフェーズの記録 ===
                 } else if (current_phase === 'test') {
                     summary_data.total_clicks_test++;
                     window.cycle_stats.clicks++; 
                     
-                    // 正確な人と不正確な人が指した方向
                     let acc_dir = (experiment_data.accurate_color === 'red') ? d.red_dir : d.blue_dir;
                     let inacc_dir = (experiment_data.inaccurate_color === 'red') ? d.red_dir : d.blue_dir;
-                    
-                    // 正確な人と不正確な人が提示したコインの枚数
                     let acc_val = (experiment_data.accurate_color === 'red') ? d.red_val : d.blue_val;
                     let inacc_val = (experiment_data.inaccurate_color === 'red') ? d.red_val : d.blue_val;
 
-                    // 指示に従ったかどうかの判定
                     let followed_acc = (side === acc_dir);
                     let followed_inacc = (side === inacc_dir);
 
@@ -844,26 +826,19 @@
                     if (side === d.red_dir) summary_data.follow_red_test++; else summary_data.unfollow_red_test++;
                     if (side === d.blue_dir) summary_data.follow_blue_test++; else summary_data.unfollow_blue_test++;
 
-                    // テストフェーズの詳細なデータ書き込み
                     jsPsych.data.write({ 
-                        phase: current_phase, 
-                        test_condition: d.test_condition,
+                        event_type: 'click', // ★これがクリックごとの目印
+                        phase: current_phase, test_condition: d.test_condition,
                         cycle: d.cycle, block: d.block, trial: trial_cursor, 
-                        response_side: side === 0 ? 'left' : 'right', // ★選択した方向
-                        
-                        accurate_hint_side: acc_dir === 0 ? 'left' : 'right', // ★正確な人が指示した方向
+                        response_side: side === 0 ? 'left' : 'right', 
+                        accurate_hint_side: acc_dir === 0 ? 'left' : 'right', 
                         inaccurate_hint_side: inacc_dir === 0 ? 'left' : 'right',
-                        
-                        accurate_val: acc_val, // ★正確な人が示したコインの枚数
-                        inaccurate_val: inacc_val, 
-                        
-                        followed_accurate: followed_acc, // ★正確な人に従ったか（TRUE/FALSE）
-                        followed_inaccurate: followed_inacc,
-
+                        accurate_val: acc_val, inaccurate_val: inacc_val, 
+                        followed_accurate: followed_acc, followed_inaccurate: followed_inacc,
                         red_hint_side: d.red_dir === 0 ? 'left' : 'right', 
                         blue_hint_side: d.blue_dir === 0 ? 'left' : 'right',
                         red_val: d.red_val, blue_val: d.blue_val,
-                        lost_val: rew, 
+                        lost_val: typeof rew !== 'undefined' ? rew : 0, 
                         cod: is_switch, rt: now - window.choice_start_time 
                     });
                 }
@@ -872,10 +847,12 @@
             document.getElementById('btn-R').onclick = () => handleClick(1);
         },
         on_finish: function(data) {
+            // ★★★ サイクルごとのまとめ記録（行が分かれます） ★★★
+            data.event_type = 'cycle_summary'; // ★これはサイクルのまとめ
             data.phase = current_phase;
+            if (current_phase === 'test') { data.test_condition = window.current_trial_data.test_condition; }
             data.cycle = window.current_trial_data.cycle;
             data.block = window.current_trial_data.block;
-            data.event_type = 'cycle_summary';
             data.cycle_total_clicks = window.cycle_stats.clicks;
             
             if (current_phase === 'training') {
@@ -887,7 +864,7 @@
                 data.cycle_unfollow_accurate = window.cycle_stats.unfollow_acc;
                 data.cycle_follow_inaccurate = window.cycle_stats.follow_inacc;
                 data.cycle_unfollow_inaccurate = window.cycle_stats.unfollow_inacc;
-                data.cycle_lost_points = window.cycle_stats.points_lost; // ★追加
+                data.cycle_lost_points = window.cycle_stats.points_lost;
             }
         }
     };
