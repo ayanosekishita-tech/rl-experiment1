@@ -725,7 +725,9 @@
                         let btnId = side===0 ? 'btn-L' : 'btn-R';
                         
                         let el = document.getElementById(imgId);
-                        if(el) el.src = IMG_CHEST_OPEN;
+                        if(el && current_phase === 'training') {
+                            el.src = IMG_CHEST_OPEN;
+                        }
                         
                         if(current_phase === 'training') {
                             if(rew > 0) {
@@ -902,7 +904,12 @@
         }
     });
 
-    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>ここからは、失ったコインの枚数が分からなくなります。<br>また今度はサポートメンバーが2人同時に現れます。先ほどと同じように、なるべくたくさんのコインを本物の宝箱に入れてください。。準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
+    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap">
+        <p>ここからは、宝箱が開いても、そのことが画面上に表示されなくなり、失ったコインの枚数も画面には表示されなくなります。</p>
+        <p>（※見えなくなるだけで、失ったコインは裏で計算されています）</p>
+        <p>また今度はサポートメンバーが2人同時に現れます。先ほどと同じように、なるべくたくさんのコインを本物の宝箱に入れてください。</p>
+        <p>準備ができたら「開始」を押してください。</p>
+        </div>`, choices: ['開始'] });
 
     function generateTestTrials() {
         let trials = [];
