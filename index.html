@@ -295,6 +295,7 @@
         unfollow_accurate_training: 0,
         unfollow_inaccurate_training: 0, 
         total_success_training: 0,
+        total_success_test: 0,
         total_clicks_test: 0,
         points_lost_follow_accurate_training: 0,     // ★追加
         points_lost_follow_inaccurate_training: 0,   // ★追加
@@ -417,14 +418,14 @@
 
     timeline.push({ 
         type: jsPsychHtmlButtonResponse, 
-        stimulus: `<div class="instruction-wrap"><p>実験参加ありがとうございます。<br>最初にお金に換えられるコイン（${initial_money}枚）をお渡しします。コインは、2枚で1円として換算されます。<br>宝箱を開けてコインを入れてください。宝箱に入ったコインは実験終了後に報酬としてお渡しします。</p></div>`, 
+        stimulus: `<div class="instruction-wrap"><p>実験参加ありがとうございます。<br>最初にお金に換えられるコインをお渡しします。<br>宝箱を開けてコインを入れてください。獲得したコインはお金に換えて実験終了後に報酬としてお渡しします。コインは、2枚で1円として換算されます。</p></div>`, 
         choices: ['次へ'] 
     });
 
     var chest_test_trial = {
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
-            <div class="instruction-wrap"><p>これらは宝箱です。何度かクリックすると開いてコインを入れることができます。ただし偽物に注意してください。偽物の宝箱を開けると5枚、または20枚失うことになります。<br>さあ、これらの宝箱をクリックして開けてみてください。<br>(ここではコインを獲得したり、失ったりすることはありません。)</p><p>宝箱が開くと音が鳴ります。音が聞こえない場合は実験を中断して実験者にお知らせください。</p></div>
+            <div class="instruction-wrap"><p>これらは宝箱です。何度かクリックすると開いてコインを一定枚数入れることができます。ただし偽物に注意してください。偽物の宝箱を開けると5枚、または20枚失うことになります。<br>さあ、これらの宝箱をクリックして開けてみてください。<br>(ここではコインを獲得したり、失ったりすることはありません。)</p><p>宝箱が開くと音が鳴ります。音が聞こえない場合は実験を中断して実験者にお知らせください。</p></div>
             <div class="chest-container" style="gap:20px;">
                 <div class="chest-btn" id="t-btn1"><img src="${IMG_CHEST_CLOSED}" id="t-img1" class="chest-img"></div>
                 <div class="chest-btn" id="t-btn2"><img src="${IMG_CHEST_CLOSED}" id="t-img2" class="chest-img"></div>
@@ -569,7 +570,7 @@
     };
     timeline.push(practice_cue1, practice_box1, practice_cue2, practice_box2);
 
-    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>それでは本番です。準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
+    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>それでは本番です。なるべくたくさんのコインを本物の宝箱に入れてください。準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
 
     function generateTrainingTrials() {
         let trials = [];
@@ -770,6 +771,9 @@
                                 
                                 if (side === inacc_dir) summary_data.points_lost_follow_inaccurate_test += rew;
                                 else summary_data.points_lost_unfollow_inaccurate_test += rew;
+                            } else {
+                                // 損失が0だった場合はテストフェーズでも成功としてカウント
+                                summary_data.total_success_test++;
                             }
                         }
                         
@@ -840,9 +844,11 @@
                     if (side === d.red_dir) summary_data.follow_red_test++; else summary_data.unfollow_red_test++;
                     if (side === d.blue_dir) summary_data.follow_blue_test++; else summary_data.unfollow_blue_test++;
 
-                    // テストフェーズのデータ書き込み
+                    // テストフェーズの詳細なデータ書き込み
                     jsPsych.data.write({ 
-                        phase: current_phase, cycle: d.cycle, block: d.block, trial: trial_cursor, 
+                        phase: current_phase, 
+                        test_condition: d.test_condition,
+                        cycle: d.cycle, block: d.block, trial: trial_cursor, 
                         response_side: side === 0 ? 'left' : 'right', // ★選択した方向
                         
                         accurate_hint_side: acc_dir === 0 ? 'left' : 'right', // ★正確な人が指示した方向
@@ -919,7 +925,7 @@
         }
     });
 
-    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>ここからは、失ったコインの枚数が分からなくなります。<br>また今度はサポートメンバーが2人同時に現れます。先ほどと同じように、偽物の宝箱を選ばないようにしてください。準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
+    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>ここからは、失ったコインの枚数が分からなくなります。<br>また今度はサポートメンバーが2人同時に現れます。先ほどと同じように、なるべくたくさんのコインを本物の宝箱に入れてください。。準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
 
     function generateTestTrials() {
         let trials = [];
@@ -1068,9 +1074,11 @@
     timeline.push({
       type: jsPsychHtmlButtonResponse,
       stimulus: function() {
+          let total_success = summary_data.total_success_training + summary_data.total_success_test;
+          let total_lost = total_money + total_money_test;
           return `<div class="instruction-wrap" style="text-align:center;">
               <h2>お疲れ様でした。ゲーム終了です。</h2>
-              <p>あなたは最終的に<span style="color:red;font-size:24px;font-weight:bold;">750枚</span>失いましたが、<span style="color:red;font-size:24px;font-weight:bold;">3000枚</span>入れられました。</p>
+              <p>あなたは<span style="color:red;font-size:24px;font-weight:bold;">${total_success}回</span>成功しましたが、<span style="color:red;font-size:24px;font-weight:bold;">${total_lost}枚</span>失って、最終的に<span style="color:red;font-size:24px;font-weight:bold;">3000枚</span>獲得しました。</p>
           </div>`;
       },
       choices: ['次へ'],
@@ -1127,7 +1135,8 @@
               follow_inaccurate_training: typeof summary_data !== 'undefined' ? summary_data.follow_inaccurate_training : 0,
               unfollow_accurate_training: typeof summary_data !== 'undefined' ? summary_data.unfollow_accurate_training : 0,
               unfollow_inaccurate_training: typeof summary_data !== 'undefined' ? summary_data.unfollow_inaccurate_training : 0,
-              total_success_training: typeof summary_data !== 'undefined' ? summary_data.total_success_training : 0, // 回避成功数
+              total_success_training: typeof summary_data !== 'undefined' ? summary_data.total_success_training : 0, 
+              total_success_test: typeof summary_data !== 'undefined' ? summary_data.total_success_test : 0,
               total_clicks_test: typeof summary_data !== 'undefined' ? summary_data.total_clicks_test : 0,
               follow_red_test: typeof summary_data !== 'undefined' ? summary_data.follow_red_test : 0,
               follow_blue_test: typeof summary_data !== 'undefined' ? summary_data.follow_blue_test : 0,
