@@ -295,12 +295,21 @@
         unfollow_accurate_training: 0,
         unfollow_inaccurate_training: 0, 
         total_success_training: 0,
+        success_unfollow_accurate_training: 0,
         total_success_test: 0,
+        success_follow_accurate_training: 0,
+        success_unfollow_accurate_training: 0,
+        success_follow_accurate_test: 0,
+        success_unfollow_accurate_test: 0,
         total_clicks_test: 0,
         points_lost_follow_accurate_training: 0,     // ★追加
         points_lost_follow_inaccurate_training: 0,   // ★追加
         points_lost_unfollow_accurate_training: 0,   // ★追加
         points_lost_unfollow_inaccurate_training: 0,
+        points_lost_follow_accurate_test: 0,     // ★追加
+        points_lost_follow_inaccurate_test: 0,   // ★追加
+        points_lost_unfollow_accurate_test: 0,   // ★追加
+        points_lost_unfollow_inaccurate_test: 0,
         follow_red_test: 0,
         follow_blue_test: 0,
         unfollow_red_test: 0,
@@ -747,6 +756,11 @@
                             } else {
                                 playAudio('reward_small');
                                 summary_data.total_success_training++;
+                                let hint_side = d.text.includes("左") ? 0 : 1;
+                                if (d.char === 'accurate') {
+                                    if (side === hint_side) summary_data.success_follow_accurate_training++;
+                                    else summary_data.success_unfollow_accurate_training++;
+                                }
                             }
                             showFloatingPoints(rew, side, btnId);
                         } else if (current_phase === 'test') {
@@ -764,6 +778,9 @@
                                 else summary_data.points_lost_unfollow_inaccurate_test += rew;
                             } else {
                                 summary_data.total_success_test++;
+                                let acc_dir = (experiment_data.accurate_color === 'red') ? d.red_dir : d.blue_dir;
+                                if (side === acc_dir) summary_data.success_follow_accurate_test++;
+                                else summary_data.success_unfollow_accurate_test++;
                             }
                         }
                         
@@ -1136,8 +1153,13 @@
               follow_inaccurate_training: typeof summary_data !== 'undefined' ? summary_data.follow_inaccurate_training : 0,
               unfollow_accurate_training: typeof summary_data !== 'undefined' ? summary_data.unfollow_accurate_training : 0,
               unfollow_inaccurate_training: typeof summary_data !== 'undefined' ? summary_data.unfollow_inaccurate_training : 0,
-              total_success_training: typeof summary_data !== 'undefined' ? summary_data.total_success_training : 0, 
+              total_success_training: typeof summary_data !== 'undefined' ? summary_data.total_success_training : 0,
+              success_unfollow_accurate_training: typeof summary_data !== 'undefined' ? summary_data.success_unfollow_accurate_training : 0,
               total_success_test: typeof summary_data !== 'undefined' ? summary_data.total_success_test : 0,
+              success_follow_accurate_training: typeof summary_data !== 'undefined' ? summary_data.success_follow_accurate_training : 0,
+              success_unfollow_accurate_training: typeof summary_data !== 'undefined' ? summary_data.success_unfollow_accurate_training : 0,
+              success_follow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.success_follow_accurate_test : 0,
+              success_unfollow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.success_unfollow_accurate_test : 0,
               total_clicks_test: typeof summary_data !== 'undefined' ? summary_data.total_clicks_test : 0,
               follow_red_test: typeof summary_data !== 'undefined' ? summary_data.follow_red_test : 0,
               follow_blue_test: typeof summary_data !== 'undefined' ? summary_data.follow_blue_test : 0,
