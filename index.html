@@ -81,7 +81,8 @@
         font-size: 20px; font-weight: bold; background-color: #fff; padding: 6px 14px; 
         border: 2px solid #333;
         border-radius: 10px; z-index: 1000; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        display: none; white-space: nowrap; pointer-events: none;
+        display: none !important;
+        white-space: nowrap; pointer-events: none;
       }
 
       #trial-counter {
@@ -256,13 +257,15 @@
     function showFloatingPoints(amount, side, chestId) {
         var el = document.createElement('div');
         el.className = 'point-feedback';
-        
-            el.style.color = '#e74c3c';
-        
+        el.style.color = '#e74c3c'; // 常に赤色
         el.innerHTML = '-' + amount + '枚';
-        document.getElementById(chestId).appendChild(el);
         
-        setTimeout(() => { if(el && el.parentNode) el.parentNode.removeChild(el); }, 3000);
+        var chestBtn = document.getElementById(chestId);
+        if (chestBtn) {
+            // 要素が存在する時だけ表示（エラーによるタイマークラッシュを完全に防ぐ）
+            chestBtn.appendChild(el);
+            setTimeout(() => { if(el && el.parentNode) el.parentNode.removeChild(el); }, 2500);
+        }
     }
 
     function getFHIntervals(N, VI) {
@@ -278,7 +281,7 @@
 
     var total_money = 0; 
     var total_money_test = 0;
-    var initial_money = 4000; 
+    var initial_money = 1200; 
     var experiment_data = {};
     var block_start_time = 0;
     var last_side = null;
@@ -306,6 +309,8 @@
         points_lost_follow_inaccurate_test: 0,   // ★追加
         points_lost_unfollow_accurate_test: 0,   // ★追加
         points_lost_unfollow_inaccurate_test: 0,
+        avoided_points_training: 0,  // （トレーニングフェーズで防いだ合計枚数）
+        avoided_points_test: 0,
         follow_red_test: 0,
         follow_blue_test: 0,
         unfollow_red_test: 0,
@@ -423,14 +428,14 @@
 
     timeline.push({ 
         type: jsPsychHtmlButtonResponse, 
-        stimulus: `<div class="instruction-wrap"><p>実験参加ありがとうございます。<br>最初にお金に換えられるコインをお渡しします。<p>宝箱をクリックしてください。宝箱をクリックするとコインを獲得できます。宝箱をたくさんクリックするほど、たくさんのコインを獲得することができます。</p><p>獲得したコインはお金に換えて実験終了後に報酬としてお渡しします。コインは、2枚で1円として換算されます。</p></div>`, 
+        stimulus: `<div class="instruction-wrap"><p>実験参加ありがとうございます。</p><p>最初にコインを 1200枚 差し上げます。</p><p>これから、画面上の宝箱をクリックすることでお金と交換できるコインを失わないようにするゲームを行なってもらいます。<br>コインは、2枚で1円として換算されます。<br>失わずに残ったコインはお金に換えて実験終了後に報酬としてお渡しします。</p></div>`, 
         choices: ['次へ'] 
     });
 
     var chest_test_trial = {
         type: jsPsychHtmlKeyboardResponse,
         stimulus: `
-            <div class="instruction-wrap"><p>これは宝箱です。何度かクリックするとコインを一定枚数獲得することができます。</p><p>ただし宝箱に怪物が潜んでいる場合があります。怪物が入っている宝箱を開けると、怪物にコインを盗られ、コインを 5枚 または 20枚 失うことになります。</p><p>さあ、この宝箱をクリックして開けてみてください。<br>(ここではコインを獲得したり、失ったりすることはありません。)</p><p>宝箱をクリックすると音が鳴ります。音が聞こえない場合は実験を中断して実験者にお知らせください。</p></div>
+            <div class="instruction-wrap"><p>これは宝箱です。</p><p>ただし偽物に注意してください。偽物の宝箱が開いてしまうと怪物にコインを盗られ、コインを 5枚 または 20枚 失ってしまいます。<br>偽物の宝箱が開かないようにするには、宝箱をクリックし続ける必要があります。</p><p>試しに、この偽物の宝箱をクリックして開かないようにしてみてください。<br>(ここではコインを獲得したり、失ったりすることはありません。)</p><p>宝箱をクリックすると音が鳴ります。音が聞こえない場合は実験を中断して実験者にお知らせください。</p></div>
             <div class="chest-container" style="gap:20px;">
                 <div class="chest-btn" id="t-btn1"><img src="${IMG_CHEST_CLOSED}" id="t-img1" class="chest-img"></div>
             </div>
@@ -438,39 +443,59 @@
         `,
         choices: "NO_KEYS",
         on_load: function(){
-            const test_val = 5;
             let test_vi_intervals = shuffleArray(getFHIntervals(10, 5));
             let next_open_time = Date.now() + (test_vi_intervals.shift() * 1000);
-            function handleClick(id, val, btnId) {
+            
+            let dangerous_side = 0; // 左（t-btn1）を危険な宝箱とする
+            let dangerous_val = 5;
+
+            // ★裏で回るタイマー（時間経過で自動で開く）
+            window.avoidanceIntervalTest = setInterval(() => {
                 let now = Date.now();
-                if (now >= next_open_time && val > 0) {
-                    document.getElementById(id).src = IMG_CHEST_OPEN;
-                    playAudio(val === 5 ? 'loss_small' : 'loss_large'); 
-                    showFloatingPoints(val, 0, btnId);
-    
-                    setTimeout(() => document.getElementById(id).src = IMG_CHEST_CLOSED, 2000);
-                
+                if (now >= next_open_time) {
+                    let el = document.getElementById('t-img1');
+                    if(el) {
+                        el.src = IMG_CHEST_OPEN;
+                        setTimeout(() => el.src = IMG_CHEST_CLOSED, 2000);
+                    }
+                    playAudio('loss_small');
+                    showFloatingPoints(dangerous_val, 0, 't-btn1');
+                    
                     if (test_vi_intervals.length === 0) test_vi_intervals = shuffleArray(getFHIntervals(10, 5));
                     next_open_time = Date.now() + (test_vi_intervals.shift() * 1000);
-                } else {
-                    playAudio('click');
                 }
-                
+            }, 100);
+
+            // ★クリックで防ぐ処理
+            function handleClick(side) {
+                playAudio('click');
+                if (side === dangerous_side) {
+                    // 回避成功！猶予時間を「固定で5秒後」にリセットする
+                    next_open_time = Date.now() + 5000;
+                }
             }
-            document.getElementById('t-btn1').onclick = () => handleClick('t-img1', test_val, 't-btn1');
-            document.getElementById('next-btn').onclick = () => jsPsych.finishTrial();
+            
+            // 宝箱は1つだけなので、t-btn1のクリック処理のみ残す
+            document.getElementById('t-btn1').onclick = () => handleClick(0);
+            
+            document.getElementById('next-btn').onclick = () => {
+                if(window.avoidanceIntervalTest) clearInterval(window.avoidanceIntervalTest);
+                jsPsych.finishTrial();
+            };
+        },
+        on_finish: function() {
+            if(window.avoidanceIntervalTest) clearInterval(window.avoidanceIntervalTest);
         }
     };
     timeline.push(chest_test_trial);
 
-    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>ゲームでは2つの宝箱が画面に表示されます。<br>2つの宝箱のうち1つに怪物が潜んでいます。</p><p>宝箱は1回につき20秒間、繰り返し表示され、宝箱が表示されている間は何度でもクリックすることができます。</p><p>失ったコインの枚数は画面下に表示されます。</p></div>`, choices: ['次へ'] });
+    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>ゲームでは2つの宝箱が画面に表示されます。</p><p>2つの宝箱は独立していて、一方の宝箱がもう一方の宝箱に依存したり、影響を与えたりすることは一切ありません。</p></div>`, choices: ['次へ'] });
 
     timeline.push({ 
         type: jsPsychHtmlButtonResponse, 
         stimulus: `
             <div class="instruction-wrap">
-                <p>ゲームを始める前に、あなたをサポートしてくれるメンバーを紹介します。ゲームには赤色の服を着た人と青色の服を着た人が登場します。</p>
-                <p>この人たちは2つの宝箱が表示される前に現れ、左右どちらの箱に怪物が潜んでいて、怪物にコインを何枚盗られるか教えてくれます。ただし間違ってしまうこともあります。</p>
+                <p>ゲームを始める前に、あなたをサポートしてくれる2人のメンバーを紹介します。</p><p>この2人は、宝箱が表示される前に現れてゲームのアドバイスをしてくれます。</p>
             </div>
             <div class="scene-container" style="margin-top: 10px; flex-wrap: nowrap;">
                 <div class="character-box">${getImgHtml(IMG_RED_SRC)}</div>
@@ -513,22 +538,46 @@
             document.getElementById('points').innerText = "練習";
             let test_vi_intervals = shuffleArray(getFHIntervals(10, 5));
             let next_open_time = Date.now() + (test_vi_intervals.shift() * 1000);
-            function handleClick(side, btnId, imgId, val) {
+            
+            let dangerous_side = 1; // 右が危険
+            let dangerous_val = 5;
+
+            // ★裏で回るタイマー（時間経過で自動で失う）
+            window.avoidanceInterval = setInterval(() => {
                 let now = Date.now();
-                if (now >= next_open_time && val > 0) {
-                    document.getElementById(imgId).src = IMG_CHEST_OPEN;
-                    playAudio(val === 5 ? 'loss_small' : 'loss_large');
-                    showFloatingPoints(val, side, btnId);
-    
-                    setTimeout(() => document.getElementById(imgId).src = IMG_CHEST_CLOSED, 2000);
-    
+                if (now >= next_open_time) {
+                    let el = document.getElementById('img-R');
+                    if(el) {
+                        el.src = IMG_CHEST_OPEN;
+                        setTimeout(() => el.src = IMG_CHEST_CLOSED, 2000);
+                    }
+                    playAudio('loss_small');
+                    showFloatingPoints(dangerous_val, dangerous_side, 'btn-R');
+                    
                     if (test_vi_intervals.length === 0) test_vi_intervals = shuffleArray(getFHIntervals(10, 5));
                     next_open_time = Date.now() + (test_vi_intervals.shift() * 1000);
-                } else { playAudio('click'); }
+                }
+            }, 100);
+
+            function handleClick(side, btnId, imgId) {
+                // クリック音はどちらを押しても鳴る
+                playAudio('click');
+                
+                if (side === dangerous_side) {
+                    // ★画像が開く処理を削除しました
+                    // 回避成功！猶予時間を「固定で5秒後」にリセットする
+                    next_open_time = Date.now() + 5000;
+                }
             }
-            document.getElementById('btn-R').onclick = () => handleClick(1, 'btn-R', 'img-R', 5);
-            document.getElementById('btn-L').onclick = () => handleClick(0, 'btn-L', 'img-L', 0);
-            document.getElementById('fin-btn').onclick = () => jsPsych.finishTrial();
+            document.getElementById('btn-R').onclick = () => handleClick(1, 'btn-R', 'img-R');
+            document.getElementById('btn-L').onclick = () => handleClick(0, 'btn-L', 'img-L');
+            document.getElementById('fin-btn').onclick = () => {
+                clearInterval(window.avoidanceInterval);
+                jsPsych.finishTrial();
+            };
+        },
+        on_finish: function() {
+            if(window.avoidanceInterval) clearInterval(window.avoidanceInterval);
         }
     };
     
@@ -546,27 +595,52 @@
         on_load: function(){
             let test_vi_intervals = shuffleArray(getFHIntervals(10, 5));
             let next_open_time = Date.now() + (test_vi_intervals.shift() * 1000);
-            function handleClick(side, btnId, imgId, val) {
+            
+            let dangerous_side = 0; // 左が危険
+            let dangerous_val = 5;
+
+            // ★裏で回るタイマー
+            window.avoidanceInterval = setInterval(() => {
                 let now = Date.now();
-                if (now >= next_open_time && val > 0) {
-                    document.getElementById(imgId).src = IMG_CHEST_OPEN;
-                    playAudio(val === 5 ? 'loss_small' : 'loss_large');
-                    showFloatingPoints(val, side, btnId);
-    
-                    setTimeout(() => document.getElementById(imgId).src = IMG_CHEST_CLOSED, 2000);
-    
+                if (now >= next_open_time) {
+                    let el = document.getElementById('img-L');
+                    if(el) {
+                        el.src = IMG_CHEST_OPEN;
+                        setTimeout(() => el.src = IMG_CHEST_CLOSED, 2000);
+                    }
+                    playAudio('loss_small');
+                    showFloatingPoints(dangerous_val, dangerous_side, 'btn-L');
+                    
                     if (test_vi_intervals.length === 0) test_vi_intervals = shuffleArray(getFHIntervals(10, 5));
                     next_open_time = Date.now() + (test_vi_intervals.shift() * 1000);
-                } else { playAudio('click'); }
+                }
+            }, 100);
+
+            function handleClick(side, btnId, imgId) {
+                // クリック音はどちらを押しても鳴る
+                playAudio('click');
+                
+                if (side === dangerous_side) {
+                    // ★画像が開く処理を削除しました
+                    // 回避成功！猶予時間を「固定で5秒後」にリセットする
+                    next_open_time = Date.now() + 5000;
+                }
             }
-            document.getElementById('btn-L').onclick = () => handleClick(0, 'btn-L', 'img-L', 5);
-            document.getElementById('btn-R').onclick = () => handleClick(1, 'btn-R', 'img-R', 0);
-            document.getElementById('fin-btn').onclick = () => jsPsych.finishTrial();
-        }, on_finish: ()=> document.getElementById('score-board').style.display = 'none'
+            document.getElementById('btn-L').onclick = () => handleClick(0, 'btn-L', 'img-L');
+            document.getElementById('btn-R').onclick = () => handleClick(1, 'btn-R', 'img-R');
+            document.getElementById('fin-btn').onclick = () => {
+                clearInterval(window.avoidanceInterval);
+                jsPsych.finishTrial();
+            };
+        }, 
+        on_finish: ()=> {
+            if(window.avoidanceInterval) clearInterval(window.avoidanceInterval);
+            document.getElementById('score-board').style.display = 'none';
+        }
     };
     timeline.push(practice_cue1, practice_box1, practice_cue2, practice_box2);
 
-    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>それでは本番です。</p><p>最初にコインを何枚かお渡しします。</p><p>怪物にコインを盗られないようにしてください。</p><p>準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
+    timeline.push({ type: jsPsychHtmlButtonResponse, stimulus: `<div class="instruction-wrap"><p>それでは本番です。</p><p>あなたは今、コインを<span style="color:red;font-size:24px;font-weight:bold;">1200枚</span>持っています。<br>できるだけコインを失わないようにしてください。</p><p>実験終了後に、失わずに残ったコインの枚数が画面に表示されます。</p><p>準備ができたら「開始」を押してください。</p></div>`, choices: ['開始'] });
 
     function generateTrainingTrials() {
         let trials = [];
@@ -690,11 +764,68 @@
         on_load: function(){
             let is_cod = false;
             document.getElementById('cod-overlay').style.visibility = 'hidden';
+            let d = window.current_trial_data;
+
+            // ★ 新ロジック：どちらが「危険な宝箱」か判定する
+            let dangerous_side = -1;
+            let dangerous_val = 0;
+
+            if (current_phase === 'training') {
+                dangerous_side = (d.rewL > 0) ? 0 : 1;
+                dangerous_val = (d.rewL > 0) ? d.rewL : d.rewR;
+            } else if (current_phase === 'test') {
+                let acc_dir = (experiment_data.accurate_color === 'red') ? d.red_dir : d.blue_dir;
+                let acc_val = (experiment_data.accurate_color === 'red') ? d.red_val : d.blue_val;
+                // テストフェーズでは、正解（accurate）が指している方向が本当に危険な宝箱
+                dangerous_side = acc_dir;
+                dangerous_val = acc_val;
+            }
+
+            // ★ 新ロジック：裏で回るタイマー（時間経過で自動的に失う）
+            window.avoidanceInterval = setInterval(() => {
+                let now = Date.now();
+                if (now >= next_reward_time) {
+                    let imgId = dangerous_side === 0 ? 'img-L' : 'img-R';
+                    let btnId = dangerous_side === 0 ? 'btn-L' : 'btn-R';
+                    
+                    if (current_phase === 'training') {
+                        // 画面に損失フィードバックを出す
+                        let el = document.getElementById(imgId);
+                        if(el) {
+                            el.src = IMG_CHEST_OPEN;
+                            setTimeout(() => el.src = IMG_CHEST_CLOSED, 3000);
+                        }
+                        playAudio(dangerous_val === 5 ? 'loss_small' : 'loss_large');
+                        total_money += dangerous_val; 
+                        document.getElementById('points').innerText = total_money + "枚";
+                        window.cycle_stats.points_lost += dangerous_val; 
+                        showFloatingPoints(dangerous_val, dangerous_side, btnId);
+                        
+                        // データ記録用（自動で失った記録）
+                        jsPsych.data.write({
+                            event_type: 'automatic_loss', phase: current_phase, cycle: d.cycle, block: d.block, trial: trial_cursor,
+                            lost_val: dangerous_val, dangerous_side: dangerous_side === 0 ? 'left' : 'right'
+                        });
+                        
+                    } else if (current_phase === 'test') {
+                        // テストフェーズは見えない裏で計算のみ
+                        total_money_test += dangerous_val;
+                        window.cycle_stats.points_lost += dangerous_val; 
+                        jsPsych.data.write({
+                            event_type: 'automatic_loss', phase: current_phase, cycle: d.cycle, block: d.block, trial: trial_cursor,
+                            lost_val: dangerous_val, dangerous_side: dangerous_side === 0 ? 'left' : 'right'
+                        });
+                    }
+                    
+                    // 次の自動損失までの時間をセット
+                    if (current_vi_intervals.length === 0) current_vi_intervals = shuffleArray(getFHIntervals(10, 5));
+                    next_reward_time = Date.now() + (current_vi_intervals.shift() * 1000);
+                }
+            }, 100);
 
             function handleClick(side) {
                 if(is_cod) return;
                 let now = Date.now();
-                let d = window.current_trial_data;
                 let is_switch = (last_side !== null && last_side !== side);
                 last_side = side;
 
@@ -709,66 +840,26 @@
                         is_cod = false;
                     }, 1500);
                 } else {
-                    let rew = 0;
-                    if (current_phase === 'training') {
-                        rew = (side===0) ? d.rewL : d.rewR; 
-                    } else if (current_phase === 'test') {
-                        rew = (side === d.red_dir) ? d.red_val : d.blue_val;
-                    }
-
-                    if (now >= next_reward_time && rew > 0) {
-                        let imgId = side === 0 ? 'img-L' : 'img-R';
-                        let btnId = side === 0 ? 'btn-L' : 'btn-R';
-    
-                        let el = document.getElementById(imgId);
-                        if(el && current_phase === 'training') {
-                            el.src = IMG_CHEST_OPEN;
-                        }
-    
-                    if (current_phase === 'training') {
-                        playAudio(rew === 5 ? 'loss_small' : 'loss_large');
-                        total_money += rew; 
-                        document.getElementById('points').innerText = total_money + "枚";
-                        window.cycle_stats.points_lost += rew; 
-        
-                        let hint_side = d.text.includes("左") ? 0 : 1; 
-                        if (side === hint_side) {
-                            if (d.char === 'accurate') summary_data.points_lost_follow_accurate_training += rew;
-                            else if (d.char === 'inaccurate') summary_data.points_lost_follow_inaccurate_training += rew;
-                        } else {
-                            if (d.char === 'accurate') summary_data.points_lost_unfollow_accurate_training += rew;
-                            else if (d.char === 'inaccurate') summary_data.points_lost_unfollow_inaccurate_training += rew;
-                        }
-                        showFloatingPoints(rew, side, btnId);
-                    } else if (current_phase === 'test') {
-                        total_money_test += rew;
-                        window.cycle_stats.points_lost += rew; 
-        
-                        let acc_dir = (experiment_data.accurate_color === 'red') ? d.red_dir : d.blue_dir;
-                        let inacc_dir = (experiment_data.inaccurate_color === 'red') ? d.red_dir : d.blue_dir;
-                        
-                        if (side === acc_dir) summary_data.points_lost_follow_accurate_test += rew;
-                        else summary_data.points_lost_unfollow_accurate_test += rew;
-        
-                        if (side === inacc_dir) summary_data.points_lost_follow_inaccurate_test += rew;
-                        else summary_data.points_lost_unfollow_inaccurate_test += rew;
-                    }
-                    
-                    if (current_vi_intervals.length === 0) {
-                        current_vi_intervals = shuffleArray(getFHIntervals(10, 5));
-                    }
-                    next_reward_time = now + (current_vi_intervals.length > 0 ? current_vi_intervals.shift() * 1000 : 999999);
-    
-                    setTimeout(() => {
-                        let imgEl = document.getElementById(imgId);
-                        if (imgEl) imgEl.src = IMG_CHEST_CLOSED;
-                    }, 2000);
-                } else {
+                    // どちらを押してもクリック音は鳴る
                     playAudio('click');
-                }
+
+                    if (side === dangerous_side) {
+                        // 回避成功！ランダムなVIではなく、固定で5秒（5000ms）の安全時間を確保する
+                        next_reward_time = Date.now() + 5000;
+                        
+                        if (current_phase === 'training') {
+                            summary_data.total_success_training++;
+                            summary_data.avoided_points_training += dangerous_val; 
+                        } else {
+                            summary_data.total_success_test++;
+                            summary_data.avoided_points_test += dangerous_val; 
+                        }
+                    } else {
+                        // 安全な宝箱を押した場合は何も起きない
+                    }
                 }
 
-                // ★★★ 1クリックごとの記録（ここに書くのが正解） ★★★
+                // 1クリックごとの記録
                 if (current_phase === 'training') {
                     summary_data.total_clicks_training++;
                     window.cycle_stats.clicks++; 
@@ -776,8 +867,8 @@
                     let hint_side = d.text.includes("左") ? 0 : 1; 
                     let is_follow = (side === hint_side);
                     
-                    if (is_follow) { window.cycle_stats.follow++; } 
-                    else { window.cycle_stats.unfollow++; }
+                    if (is_follow) window.cycle_stats.follow++; 
+                    else window.cycle_stats.unfollow++;
 
                     if(d.char === 'accurate') {
                         if (is_follow) summary_data.follow_accurate_training++;
@@ -788,14 +879,14 @@
                     }
                     
                     jsPsych.data.write({ 
-                        event_type: 'click', // ★これがクリックごとの目印
+                        event_type: 'click', 
                         phase: current_phase, cycle: d.cycle, block: d.block, trial: trial_cursor, 
                         response_side: side === 0 ? 'left' : 'right', 
                         character: d.char,
                         hint_side: hint_side === 0 ? 'left' : 'right',
                         followed_hint: is_follow, 
-                        reward_val: d.rewL > 0 || d.rewR > 0 ? (d.rewL > 0 ? d.rewL : d.rewR) : 0, 
-                        lost_val: typeof rew !== 'undefined' ? rew : 0, 
+                        lost_val: 0, // クリック行動自体では直接失われない
+                        avoided: (side === dangerous_side && !is_switch), // 回避アクションだったか
                         cod: is_switch, rt: now - window.choice_start_time 
                     });
                 } else if (current_phase === 'test') {
@@ -804,8 +895,6 @@
                     
                     let acc_dir = (experiment_data.accurate_color === 'red') ? d.red_dir : d.blue_dir;
                     let inacc_dir = (experiment_data.inaccurate_color === 'red') ? d.red_dir : d.blue_dir;
-                    let acc_val = (experiment_data.accurate_color === 'red') ? d.red_val : d.blue_val;
-                    let inacc_val = (experiment_data.inaccurate_color === 'red') ? d.red_val : d.blue_val;
 
                     let followed_acc = (side === acc_dir);
                     let followed_inacc = (side === inacc_dir);
@@ -816,18 +905,15 @@
                     if (side === d.blue_dir) summary_data.follow_blue_test++; else summary_data.unfollow_blue_test++;
 
                     jsPsych.data.write({ 
-                        event_type: 'click', // ★これがクリックごとの目印
+                        event_type: 'click', 
                         phase: current_phase, test_condition: d.test_condition,
                         cycle: d.cycle, block: d.block, trial: trial_cursor, 
                         response_side: side === 0 ? 'left' : 'right', 
                         accurate_hint_side: acc_dir === 0 ? 'left' : 'right', 
                         inaccurate_hint_side: inacc_dir === 0 ? 'left' : 'right',
-                        accurate_val: acc_val, inaccurate_val: inacc_val, 
                         followed_accurate: followed_acc, followed_inaccurate: followed_inacc,
-                        red_hint_side: d.red_dir === 0 ? 'left' : 'right', 
-                        blue_hint_side: d.blue_dir === 0 ? 'left' : 'right',
-                        red_val: d.red_val, blue_val: d.blue_val,
-                        lost_val: typeof rew !== 'undefined' ? rew : 0, 
+                        lost_val: 0, 
+                        avoided: (side === dangerous_side && !is_switch), 
                         cod: is_switch, rt: now - window.choice_start_time 
                     });
                 }
@@ -836,8 +922,10 @@
             document.getElementById('btn-R').onclick = () => handleClick(1);
         },
         on_finish: function(data) {
-            // ★★★ サイクルごとのまとめ記録（行が分かれます） ★★★
-            data.event_type = 'cycle_summary'; // ★これはサイクルのまとめ
+            // ★ 試行が終わったらタイマーを止める
+            if(window.avoidanceInterval) clearInterval(window.avoidanceInterval);
+
+            data.event_type = 'cycle_summary';
             data.phase = current_phase;
             if (current_phase === 'test') { data.test_condition = window.current_trial_data.test_condition; }
             data.cycle = window.current_trial_data.cycle;
@@ -1048,7 +1136,7 @@
           let total_lost = total_money + total_money_test;
           return `<div class="instruction-wrap" style="text-align:center;">
               <h2>お疲れ様でした。ゲーム終了です。</h2>
-              <p>あなたは<span style="color:red;font-size:24px;font-weight:bold;">${total_lost}枚</span>失って、最終的に<span style="color:red;font-size:24px;font-weight:bold;">3000枚</span>獲得しました。</p>
+              <p>あなたは<span style="color:red;font-size:24px;font-weight:bold;">${total_lost}枚</span>失って、最終的に<span style="color:red;font-size:24px;font-weight:bold;">800枚</span>残しました。</p>
           </div>`;
       },
       choices: ['次へ'],
@@ -1132,6 +1220,8 @@
               points_lost_follow_inaccurate_test: typeof summary_data !== 'undefined' ? summary_data.points_lost_follow_inaccurate_test : 0,
               points_lost_unfollow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.points_lost_unfollow_accurate_test : 0,
               points_lost_unfollow_inaccurate_test: typeof summary_data !== 'undefined' ? summary_data.points_lost_unfollow_inaccurate_test : 0,
+              avoided_points_training: typeof summary_data !== 'undefined' ? summary_data.avoided_points_training : 0,
+              avoided_points_test: typeof summary_data !== 'undefined' ? summary_data.avoided_points_test : 0,
               final_money_reward_calculated: 4000 - ((typeof total_money !== 'undefined' ? total_money : 0) + (typeof total_money_test !== 'undefined' ? total_money_test : 0)),
               final_money_reward: 3000, // 最終獲得金額は必ず3000枚
               eval_inaccurate: experiment_data.eval_inaccurate || '未回答',
