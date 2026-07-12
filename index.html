@@ -782,10 +782,36 @@
                 dangerous_side = acc_dir;
                 dangerous_val = acc_val;
             }
-
+            //本来開くはずだったスケジュールを走らせるための変数
+            let ghost_vi_intervals = current_vi_intervals.slice();
+            let next_ghost_time = next_reward_time;
             // ★ 新ロジック：裏で回るタイマー（時間経過で自動的に失う）
             window.avoidanceInterval = setInterval(() => {
                 let now = Date.now();
+                // ▼本来開くはずだったタイミングで防げていたかの判定
+                // ----------------------------------------------------
+                if (now >= next_ghost_time) {
+                    // その瞬間に実際のタイマー（next_reward_time）がクリックによって未来に延ばされていれば「見事防げた」とカウント
+                    if (now < next_reward_time) {
+                        if (current_phase === 'training') {
+                            summary_data.total_success_training++;
+                            summary_data.avoided_points_training += dangerous_val; 
+                            
+                            let hint_side = d.text.includes("左") ? 0 : 1; 
+                            // 正確なキャラのヒント通りにクリックして防げた場合
+                            if (dangerous_side === hint_side && d.char === 'accurate') {
+                                summary_data.avoided_points_follow_accurate_training += dangerous_val;
+                                window.cycle_stats.avoided_points_follow_acc += dangerous_val;
+                            }
+                        } else if (current_phase === 'test') {
+                            summary_data.total_success_test++;
+                            summary_data.avoided_points_test += dangerous_val; 
+                        }
+                    }
+                    // 裏側のタイマーを次のスケジュールへ進める
+                    if (ghost_vi_intervals.length === 0) ghost_vi_intervals = shuffleArray(getFHIntervals(10, 5));
+                    next_ghost_time = now + (ghost_vi_intervals.shift() * 1000);
+                }
                 if (now >= next_reward_time) {
                     let imgId = dangerous_side === 0 ? 'img-L' : 'img-R';
                     let btnId = dangerous_side === 0 ? 'btn-L' : 'btn-R';
@@ -848,19 +874,6 @@
                     if (side === dangerous_side) {
                         // 回避成功！ランダムなVIではなく、固定で5秒（5000ms）の安全時間を確保する
                         next_reward_time = Date.now() + 5000;
-                        
-                        if (current_phase === 'training') {
-                            summary_data.total_success_training++;
-                            summary_data.avoided_points_training += dangerous_val; 
-                            let hint_side = d.text.includes("左") ? 0 : 1; 
-                            if (side === hint_side && d.char === 'accurate') {
-                                summary_data.avoided_points_follow_accurate_training += dangerous_val;
-                                window.cycle_stats.avoided_points_follow_acc += dangerous_val;
-                            }
-                        } else {
-                            summary_data.total_success_test++;
-                            summary_data.avoided_points_test += dangerous_val; 
-                        }
                     } else {
                         // 安全な宝箱を押した場合は何も起きない
                     }
