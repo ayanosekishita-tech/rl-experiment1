@@ -429,7 +429,7 @@
 
     timeline.push({ 
         type: jsPsychHtmlButtonResponse, 
-        stimulus: `<div class="instruction-wrap"><p>実験参加ありがとうございます。</p><p>最初にコインを 1200枚 差し上げます。</p><p>これから、画面上の宝箱をクリックすることでお金と交換できるコインを失わないようにするゲームを行なってもらいます。<br>コインは、2枚で1円として換算されます。<br>失わずに残ったコインはお金に換えて実験終了後に報酬としてお渡しします。</p></div>`, 
+        stimulus: `<div class="instruction-wrap"><p>実験参加ありがとうございます。</p><p>最初にコインを 1000枚 差し上げます。</p><p>これから、画面上の宝箱をクリックすることでお金と交換できるコインを失わないようにするゲームを行なってもらいます。<br>コインは、2枚で1円として換算されます。<br>失わずに残ったコインはお金に換えて実験終了後に報酬としてお渡しします。</p></div>`, 
         choices: ['次へ'] 
     });
 
@@ -1157,7 +1157,7 @@
           let total_lost = total_money + total_money_test;
           return `<div class="instruction-wrap" style="text-align:center;">
               <h2>お疲れ様でした。ゲーム終了です。</h2>
-              <p>あなたは<span style="color:red;font-size:24px;font-weight:bold;">${total_lost}枚</span>失って、最終的に<span style="color:red;font-size:24px;font-weight:bold;">800枚</span>残しました。</p>
+              <p>あなたは<span style="color:red;font-size:24px;font-weight:bold;">300枚</span>失って、最終的に<span style="color:red;font-size:24px;font-weight:bold;">700枚</span>残しました。</p>
           </div>`;
       },
       choices: ['次へ'],
