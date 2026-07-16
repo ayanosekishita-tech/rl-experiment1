@@ -312,10 +312,10 @@
         avoided_points_training: 0,  // （トレーニングフェーズで防いだ合計枚数）
         avoided_points_follow_accurate_training: 0,//トレーニングフェーズで正確なRPに従って防いだ合計枚数
         avoided_points_test: 0,
-        follow_red_test: 0,
-        follow_blue_test: 0,
-        unfollow_red_test: 0,
-        unfollow_blue_test: 0
+        follow_accurate_test: 0,
+        unfollow_accurate_test: 0,
+        follow_inaccurate_test: 0,
+        unfollow_inaccurate_test: 0,
     };
     var time_data = {
         training_start: 0,
@@ -921,8 +921,9 @@
 
                     if (followed_acc) window.cycle_stats.follow_acc++; else window.cycle_stats.unfollow_acc++;
                     if (followed_inacc) window.cycle_stats.follow_inacc++; else window.cycle_stats.unfollow_inacc++;
-                    if (side === d.red_dir) summary_data.follow_red_test++; else summary_data.unfollow_red_test++;
-                    if (side === d.blue_dir) summary_data.follow_blue_test++; else summary_data.unfollow_blue_test++;
+                    // ★ 赤/青ではなく、正確/不正確の変数に加算するよう変更
+                    if (followed_acc) summary_data.follow_accurate_test++; else summary_data.unfollow_accurate_test++;
+                    if (followed_inacc) summary_data.follow_inaccurate_test++; else summary_data.unfollow_inaccurate_test++;
 
                     jsPsych.data.write({ 
                         event_type: 'click', 
@@ -1153,7 +1154,6 @@
     timeline.push({
       type: jsPsychHtmlButtonResponse,
       stimulus: function() {
-          let total_success = summary_data.total_success_training + summary_data.total_success_test;
           let total_lost = total_money + total_money_test;
           return `<div class="instruction-wrap" style="text-align:center;">
               <h2>お疲れ様でした。ゲーム終了です。</h2>
@@ -1223,10 +1223,10 @@
               success_follow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.success_follow_accurate_test : 0,
               success_unfollow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.success_unfollow_accurate_test : 0,
               total_clicks_test: typeof summary_data !== 'undefined' ? summary_data.total_clicks_test : 0,
-              follow_red_test: typeof summary_data !== 'undefined' ? summary_data.follow_red_test : 0,
-              follow_blue_test: typeof summary_data !== 'undefined' ? summary_data.follow_blue_test : 0,
-              unfollow_red_test: typeof summary_data !== 'undefined' ? summary_data.unfollow_red_test : 0,
-              unfollow_blue_test: typeof summary_data !== 'undefined' ? summary_data.unfollow_blue_test : 0,
+              follow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.follow_accurate_test : 0,
+              unfollow_accurate_test: typeof summary_data !== 'undefined' ? summary_data.unfollow_accurate_test : 0,
+              follow_inaccurate_test: typeof summary_data !== 'undefined' ? summary_data.follow_inaccurate_test : 0,
+              unfollow_inaccurate_test: typeof summary_data !== 'undefined' ? summary_data.unfollow_inaccurate_test : 0,
               training_duration_sec: train_time,
               test_duration_sec: test_time,
               total_experiment_sec: total_time,
